@@ -65,6 +65,14 @@ function render(m,id,i){
   const src=m.type==='photo'?m.url:(mp4s[0]&&mp4s[0].url)||m.url;
   const name=`x-${id}-${i+1}.${m.type==='photo'?'jpg':'mp4'}`;
   const d=document.createElement('div'); d.className='item';
+  if(m.type==='gif'){
+    // vrai .gif converti par fxtwitter ; une <img> s'enregistre dans Photos par appui long, sans fetch ni CORS
+    const gif=src.replace('https://video.twimg.com/','https://gif.fxtwitter.com/').replace(/\.mp4.*$/,'.gif');
+    const img=document.createElement('img'); img.src=gif; d.append(img);
+    const hint=document.createElement('div'); hint.className='meta';
+    hint.textContent='GIF '+m.width+'×'+m.height+' — appuie longtemps sur l\'image, puis « Ajouter à Photos » (ou « Enregistrer dans Fichiers »).';
+    d.append(hint); out.append(d); return;
+  }
   const el=document.createElement(m.type==='photo'?'img':'video');
   el.crossOrigin='anonymous'; el.src=src;
   if(m.type!=='photo'){el.controls=true;el.playsInline=true;el.muted=m.type==='gif';el.loop=m.type==='gif';el.poster=m.thumbnail_url||''}
