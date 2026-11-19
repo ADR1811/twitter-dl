@@ -66,7 +66,7 @@ function render(m,id,i){
   const name=`x-${id}-${i+1}.${m.type==='photo'?'jpg':'mp4'}`;
   const d=document.createElement('div'); d.className='item';
   const el=document.createElement(m.type==='photo'?'img':'video');
-  el.src=src;
+  el.crossOrigin='anonymous'; el.src=src;
   if(m.type!=='photo'){el.controls=true;el.playsInline=true;el.muted=m.type==='gif';el.loop=m.type==='gif';el.poster=m.thumbnail_url||''}
   d.append(el);
   const meta=document.createElement('div'); meta.className='meta';
@@ -81,7 +81,7 @@ function render(m,id,i){
 async function save(src,name,btn){
   const t=btn.textContent; btn.textContent='…'; btn.disabled=true;
   try{
-    const blob=await (await fetch(src)).blob();
+    const blob=await (await fetch(src,{cache:'reload'})).blob();
     const file=new File([blob],name,{type:blob.type});
     // mobile : feuille de partage -> « Enregistrer la vidéo » (Photos)
     if(navigator.canShare&&navigator.canShare({files:[file]})){
@@ -90,7 +90,7 @@ async function save(src,name,btn){
       const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href),10000);
     }
-  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message}}
+  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message+' — ouverture directe, appuie longtemps sur la vidéo pour l\'enregistrer.';window.open(src,'_blank')}}
   btn.textContent=t; btn.disabled=false;
 }
 
