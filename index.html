@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="X DL">
+<title>X DL</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#000;color:#e7e9ea;font:16px/1.4 system-ui,sans-serif;padding:max(16px,env(safe-area-inset-top)) 16px 32px}
+main{max-width:520px;margin:0 auto}
+h1{font-size:20px;margin:8px 0 16px}
+form{display:flex;gap:8px}
+input{flex:1;min-width:0;padding:14px;border-radius:12px;border:1px solid #2f3336;background:#16181c;color:inherit;font-size:16px}
+button,a.btn{padding:14px 18px;border:0;border-radius:12px;background:#1d9bf0;color:#fff;font-size:16px;font-weight:600;text-decoration:none;text-align:center;cursor:pointer}
+button.alt,a.alt{background:#2f3336}
+#msg{margin:16px 0;color:#f4212e}
+.item{margin:20px 0;background:#16181c;border-radius:16px;overflow:hidden}
+.item video,.item img{width:100%;display:block;background:#000;max-height:60vh;object-fit:contain}
+.row{display:flex;gap:8px;padding:12px;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+.meta{padding:12px 12px 0;color:#71767b;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<h1>X DL</h1>
+<form id="f">
+  <input id="u" type="url" placeholder="Lien du tweet" autocomplete="off" autocapitalize="off" required>
+  <button>OK</button>
+</form>
+<div id="msg"></div>
+<div id="out"></div>
+</main>
+<script>
+const $=id=>document.getElementById(id), out=$('out'), msg=$('msg'), input=$('u');
+
+// id du tweet depuis un lien x.com / twitter.com / fxtwitter...
+const tweetId=s=>(s.match(/status(?:es)?\/(\d+)/)||[])[1];
+
+async function load(url){
+  msg.textContent=''; out.innerHTML='';
+  const id=tweetId(url);
+  if(!id){msg.textContent='Lien invalide.';return}
+  msg.style.color='#71767b'; msg.textContent='Chargement…';
+  try{
+    const r=await fetch('https://api.fxtwitter.com/status/'+id);
+    const j=await r.json();
+    const media=j.tweet&&j.tweet.media&&j.tweet.media.all||[];
+    const items=media.filter(m=>m.type==='video'||m.type==='gif'||m.type==='photo');
+    if(!items.length){throw new Error(j.tweet?'Aucune vidéo ni GIF dans ce tweet.':'Tweet introuvable ou privé.')}
+    msg.textContent='';
+    items.forEach((m,i)=>render(m,id,i));
+  }catch(e){msg.style.color='#f4212e';msg.textContent=e.message||'Erreur réseau.'}
+}
+
+function render(m,id,i){
+  // meilleure qualité mp4 ; les GIF Twitter sont des mp4 sans son
+  const mp4s=(m.formats||[]).filter(f=>f.container==='mp4').sort((a,b)=>b.bitrate-a.bitrate);
+  const src=m.type==='photo'?m.url:(mp4s[0]&&mp4s[0].url)||m.url;
+  const name=`x-${id}-${i+1}.${m.type==='photo'?'jpg':'mp4'}`;
+  const d=document.createElement('div'); d.className='item';
+  const el=document.createElement(m.type==='photo'?'img':'video');
+  el.src=src;
+  if(m.type!=='photo'){el.controls=true;el.playsInline=true;el.muted=m.type==='gif';el.loop=m.type==='gif';el.poster=m.thumbnail_url||''}
+  d.append(el);
+  const meta=document.createElement('div'); meta.className='meta';
+  meta.textContent=`${m.type.toUpperCase()} ${m.width}×${m.height}`+(m.duration?` · ${m.duration.toFixed(1)}s`:'');
+  d.append(meta);
+  const row=document.createElement('div'); row.className='row';
+  const b=document.createElement('button'); b.textContent='Enregistrer';
+  b.onclick=()=>save(src,name,b);
+  row.append(b); d.append(row); out.append(d);
+}
+
+async function save(src,name,btn){
+  const t=btn.textContent; btn.textContent='…'; btn.disabled=true;
+  try{
+    const blob=await (await fetch(src)).blob();
+    const file=new File([blob],name,{type:blob.type});
+    // mobile : feuille de partage -> « Enregistrer la vidéo » (Photos)
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file]});
+    }else{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    }
+  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message}}
+  btn.textContent=t; btn.disabled=false;
+}
+
+$('f').onsubmit=e=>{e.preventDefault();load(input.value.trim())};
+// colle auto depuis le presse-papier si c'est un lien de tweet quand on ouvre l'app
+input.addEventListener('focus',()=>input.select());
+// arrivée via « Partager » (Android) ou ?url=
+const p=new URLSearchParams(location.search);
+const shared=p.get('url')||p.get('text');
+if(shared&&tweetId(shared)){input.value=shared.match(/https?:\/\/\S+/)?.[0]||shared;load(input.value)}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
