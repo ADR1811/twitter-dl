@@ -81,25 +81,25 @@ function render(m,id,i){
   meta.textContent=`${m.type.toUpperCase()} ${m.width}×${m.height}`+(m.duration?` · ${m.duration.toFixed(1)}s`:'');
   d.append(meta);
   const row=document.createElement('div'); row.className='row';
-  const b=document.createElement('button'); b.textContent='Enregistrer';
-  b.onclick=()=>save(src,name,b);
+  const b=document.createElement('button'); b.textContent='Préparation…'; b.disabled=true;
+  // le fichier est téléchargé AVANT le clic : iOS exige que navigator.share soit appelé tout de suite après l'appui
+  let file;
+  fetch(src).then(r=>r.blob()).then(blob=>{file=new File([blob],name,{type:blob.type||(m.type==='photo'?'image/jpeg':'video/mp4')});b.textContent='Enregistrer';b.disabled=false})
+    .catch(()=>{b.textContent='Ouvrir';b.disabled=false;b.onclick=()=>window.open(src,'_blank')});
+  b.onclick=()=>save(file,b);
   row.append(b); d.append(row); out.append(d);
 }
 
-async function save(src,name,btn){
-  const t=btn.textContent; btn.textContent='…'; btn.disabled=true;
+async function save(file,btn){
   try{
-    const blob=await (await fetch(src,{cache:'reload'})).blob();
-    const file=new File([blob],name,{type:blob.type});
     // mobile : feuille de partage -> « Enregistrer la vidéo » (Photos)
     if(navigator.canShare&&navigator.canShare({files:[file]})){
       await navigator.share({files:[file]});
     }else{
-      const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+      const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click();
       setTimeout(()=>URL.revokeObjectURL(a.href),10000);
     }
-  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message+' — ouverture directe, appuie longtemps sur la vidéo pour l\'enregistrer.';window.open(src,'_blank')}}
-  btn.textContent=t; btn.disabled=false;
+  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message}}
 }
 
 $('f').onsubmit=e=>{e.preventDefault();load(input.value.trim())};
