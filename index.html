@@ -60,6 +60,15 @@ async function load(url){
   }catch(e){msg.style.color='#f4212e';msg.textContent=e.message||'Erreur réseau.'}
 }
 
+// Safari réutilise sinon la réponse non-CORS mise en cache par la balise <video> ; on tente plusieurs variantes si X répond 403
+async function grab(src){
+  let last;
+  for(const o of [{cache:'reload',referrerPolicy:'no-referrer'},{cache:'reload',referrerPolicy:'no-referrer',headers:{Range:'bytes=0-'}},{cache:'reload',referrerPolicy:'no-referrer',credentials:'omit',mode:'cors'}]){
+    try{const r=await fetch(src,o);if(r.ok||r.status===206)return r;last=new Error('HTTP '+r.status)}catch(e){last=e}
+  }
+  throw last;
+}
+
 function render(m,id,i){
   // meilleure qualité mp4 ; les GIF Twitter sont des mp4 sans son
   const mp4s=(m.formats||[]).filter(f=>f.container==='mp4').sort((a,b)=>b.bitrate-a.bitrate);
@@ -87,7 +96,7 @@ function render(m,id,i){
   const info=document.createElement('div'); info.className='meta'; info.style.padding='0 12px 12px';
   // le fichier est téléchargé AVANT le clic : iOS exige que navigator.share soit appelé tout de suite après l'appui
   let file;
-  fetch(src).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.blob()}).then(blob=>{
+  grab(src).then(r=>r.blob()).then(blob=>{
     file=new File([blob],name,{type:m.type==='photo'?'image/jpeg':'video/mp4'});
     dl.href=URL.createObjectURL(file); dl.download=name; dl.style.display='';
     const ok=!!(navigator.canShare&&navigator.canShare({files:[file]}));
