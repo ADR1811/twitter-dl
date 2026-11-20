@@ -91,6 +91,7 @@ function render(m,id,i){
 }
 
 async function save(file,btn){
+  if(btn.disabled)return; btn.disabled=true;
   try{
     // mobile : feuille de partage -> « Enregistrer la vidéo » (Photos)
     if(navigator.canShare&&navigator.canShare({files:[file]})){
@@ -100,6 +101,7 @@ async function save(file,btn){
       setTimeout(()=>URL.revokeObjectURL(a.href),10000);
     }
   }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message}}
+  btn.disabled=false;
 }
 
 $('f').onsubmit=e=>{e.preventDefault();load(input.value.trim())};
