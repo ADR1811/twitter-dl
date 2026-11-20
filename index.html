@@ -82,26 +82,30 @@ function render(m,id,i){
   d.append(meta);
   const row=document.createElement('div'); row.className='row';
   const b=document.createElement('button'); b.textContent='Préparation…'; b.disabled=true;
+  const dl=document.createElement('a'); dl.className='btn alt'; dl.textContent='Fichier'; dl.style.display='none';
+  const info=document.createElement('div'); info.className='meta'; info.style.padding='0 12px 12px';
   // le fichier est téléchargé AVANT le clic : iOS exige que navigator.share soit appelé tout de suite après l'appui
   let file;
-  fetch(src).then(r=>r.blob()).then(blob=>{file=new File([blob],name,{type:blob.type||(m.type==='photo'?'image/jpeg':'video/mp4')});b.textContent='Enregistrer';b.disabled=false})
-    .catch(()=>{b.textContent='Ouvrir';b.disabled=false;b.onclick=()=>window.open(src,'_blank')});
-  b.onclick=()=>save(file,b);
-  row.append(b); d.append(row); out.append(d);
+  fetch(src).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.blob()}).then(blob=>{
+    file=new File([blob],name,{type:m.type==='photo'?'image/jpeg':'video/mp4'});
+    dl.href=URL.createObjectURL(file); dl.download=name; dl.style.display='';
+    const ok=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+    info.textContent=`${(blob.size/1048576).toFixed(1)} Mo · partage ${ok?'possible':'indisponible'}`;
+    b.textContent='Enregistrer'; b.disabled=false; b.onclick=()=>save(file,b,info);
+  }).catch(e=>{info.textContent='Téléchargement impossible : '+e.message;b.textContent='Ouvrir';b.disabled=false;b.onclick=()=>window.open(src,'_blank')});
+  row.append(b,dl); d.append(row,info); out.append(d);
 }
 
-async function save(file,btn){
-  if(btn.disabled)return; btn.disabled=true;
+let sharing=false;
+async function save(file,btn,info){
+  if(sharing){info.textContent='Partage déjà ouvert : ferme la feuille de partage ou rouvre l\'app.';return}
+  sharing=true;
   try{
-    // mobile : feuille de partage -> « Enregistrer la vidéo » (Photos)
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file]});
-    }else{
-      const a=document.createElement('a'); a.href=URL.createObjectURL(file); a.download=file.name; a.click();
-      setTimeout(()=>URL.revokeObjectURL(a.href),10000);
-    }
-  }catch(e){if(e.name!=='AbortError'){msg.style.color='#f4212e';msg.textContent='Échec : '+e.message}}
-  btn.disabled=false;
+    if(!(navigator.canShare&&navigator.canShare({files:[file]})))throw new Error('partage de fichier non supporté, utilise « Fichier »');
+    await navigator.share({files:[file]});
+    info.textContent='Partagé. Choisis « Enregistrer la vidéo » pour Photos.';
+  }catch(e){info.textContent=e.name==='AbortError'?'Annulé.':'Échec : '+e.name+' '+e.message}
+  sharing=false;
 }
 
 $('f').onsubmit=e=>{e.preventDefault();load(input.value.trim())};
